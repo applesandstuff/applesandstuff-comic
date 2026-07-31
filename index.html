@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Off By One — a webcomic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f7f4ec;
+    --paper-dark:#efeadd;
+    --ink:#232120;
+    --accent:#c1442d;
+    --accent-soft:#e7bfa9;
+    --pencil:#8a8578;
+    --highlight:#f0c96b;
+  }
+  * { box-sizing: border-box; }
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Mono', monospace;
+    min-height:100vh;
+    background-image: radial-gradient(var(--paper-dark) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  header{
+    text-align:center;
+    padding:38px 20px 18px;
+    border-bottom: 2px solid var(--ink);
+    position:relative;
+  }
+  h1{
+    font-family:'Caveat', cursive;
+    font-weight:700;
+    font-size:clamp(2.6rem, 7vw, 4.2rem);
+    margin:0;
+    letter-spacing:1px;
+    cursor:pointer;
+    display:inline-block;
+    transform:rotate(-1deg);
+  }
+  h1:hover{ color:var(--accent); }
+  .tagline{ font-size:0.85rem; color:var(--pencil); margin-top:6px; }
+  .header-controls{
+    position:absolute;
+    right:20px;
+    top:38px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+  }
+  .chip-btn{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.75rem;
+    background:none;
+    border:1.5px solid var(--ink);
+    color:var(--ink);
+    padding:6px 12px;
+    border-radius:3px;
+    cursor:pointer;
+    transition: all 0.15s ease;
+  }
+  .chip-btn:hover{ background:var(--ink); color:var(--paper); }
+  .chip-btn.edit-on{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .chip-btn.edit-on:hover{ background:#a3371f; }
+
+  main{ max-width: 760px; margin: 0 auto; padding: 34px 18px 60px; }
+  .comic-num{ text-align:center; font-size:0.75rem; color:var(--pencil); margin-bottom:8px; }
+  .comic-title{ text-align:center; font-family:'Caveat', cursive; font-weight:700; font-size:2rem; margin: 0 0 18px; }
+
+  .comic-frame{
+    background:#fffdf8;
+    border:2.5px solid var(--ink);
+    filter: url(#wobble);
+    padding: 10px;
+    position:relative;
+  }
+  .comic-frame svg{ display:block; width:100%; height:auto; cursor: help; }
+  .comic-frame img{ display:block; width:100%; height:auto; cursor: help; }
+
+  .edit-strip{
+    display:none;
+    justify-content:center;
+    gap:8px;
+    margin-top:10px;
+  }
+  .edit-strip.show{ display:flex; }
+  .edit-strip button{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.72rem;
+    background:var(--paper-dark);
+    border:1.5px solid var(--ink);
+    padding:5px 10px;
+    border-radius:3px;
+    cursor:pointer;
+  }
+  .edit-strip button:hover{ background:var(--ink); color:var(--paper); }
+  .edit-strip button.danger:hover{ background:var(--accent); border-color:var(--accent); }
+
+  .alt-hint{ text-align:center; font-size:0.72rem; color:var(--pencil); margin-top:10px; font-style:italic; }
+  .alt-reveal{
+    max-width: 520px; margin: 14px auto 0; text-align:center; font-size:0.85rem; line-height:1.5;
+    color:var(--ink); background: var(--highlight); border:1.5px dashed var(--ink);
+    padding:10px 14px; border-radius:4px; display:none;
+  }
+  .alt-reveal.show{ display:block; }
+
+  nav.comic-nav{ display:flex; justify-content:center; align-items:center; gap:8px; margin-top:26px; flex-wrap:wrap; }
+  nav.comic-nav button{
+    font-family:'IBM Plex Mono', monospace; font-size:0.8rem; font-weight:500;
+    background: var(--paper); border:1.5px solid var(--ink); padding:8px 14px;
+    border-radius:3px; cursor:pointer; transition: all 0.15s ease;
+  }
+  nav.comic-nav button:hover:not(:disabled){ background: var(--ink); color: var(--paper); }
+  nav.comic-nav button.random{ background: var(--accent); border-color: var(--accent); color: #fff; }
+  nav.comic-nav button.random:hover{ background: #a3371f; }
+  nav.comic-nav button:disabled{ opacity:0.3; cursor:default; }
+
+  .permalink{ text-align:center; margin-top:14px; font-size:0.72rem; color:var(--pencil); }
+
+  .archive-panel{ max-width: 760px; margin: 0 auto 40px; padding: 0 18px; display:none; }
+  .archive-panel.show{ display:block; }
+  .archive-panel h2{
+    font-family:'Caveat', cursive; font-size:1.8rem; margin: 20px 0 10px;
+    border-bottom: 2px solid var(--ink); padding-bottom:6px;
+  }
+  .archive-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; border-top:1px solid var(--paper-dark); }
+  .archive-list li{
+    display:flex; gap:14px; align-items:center; padding:9px 4px;
+    border-bottom:1px solid var(--paper-dark); font-size:0.88rem;
+  }
+  .archive-list li:hover{ background: var(--paper-dark); }
+  .archive-list .a-main{ flex:1; display:flex; gap:14px; align-items:baseline; cursor:pointer; }
+  .archive-list .a-num{ color:var(--pencil); font-size:0.75rem; min-width:34px; }
+  .archive-list .a-title{ font-weight:600; }
+  .archive-list .a-del{
+    font-size:0.7rem; background:none; border:1px solid var(--pencil); color:var(--pencil);
+    border-radius:3px; padding:3px 7px; cursor:pointer; display:none;
+  }
+  .archive-list .a-del:hover{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  body.editing .archive-list .a-del{ display:inline-block; }
+
+  .fab{
+    position:fixed; right:26px; bottom:26px; display:none;
+    width:56px; height:56px; border-radius:50%; background:var(--accent); color:#fff;
+    border:none; font-size:1.8rem; line-height:56px; text-align:center; cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,0.25); z-index: 20;
+  }
+  .fab:hover{ background:#a3371f; }
+  body.editing .fab{ display:block; }
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(35,33,32,0.55);
+    z-index:50; align-items:flex-start; justify-content:center; overflow-y:auto; padding: 30px 14px;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal{
+    background:var(--paper); border:2.5px solid var(--ink); border-radius:6px;
+    max-width:660px; width:100%; padding:22px; margin-top: 10px;
+  }
+  .modal h3{ font-family:'Caveat', cursive; font-size:1.9rem; margin:0 0 14px; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:0.75rem; color:var(--pencil); margin-bottom:5px; }
+  .field input[type=text], .field textarea{
+    width:100%; font-family:'IBM Plex Mono', monospace; font-size:0.85rem;
+    padding:8px 10px; border:1.5px solid var(--ink); border-radius:3px; background:#fffdf8; color:var(--ink);
+  }
+  .field textarea{ resize:vertical; min-height:44px; }
+
+  .canvas-wrap{ border:2px solid var(--ink); background:#fffdf8; touch-action:none; }
+  #drawCanvas{ display:block; width:100%; height:auto; cursor:crosshair; }
+
+  .tool-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  .swatch{
+    width:24px; height:24px; border-radius:50%; border:2px solid var(--ink); cursor:pointer; padding:0;
+  }
+  .swatch.active{ outline:2px solid var(--accent); outline-offset:2px; }
+  .tool-row button.util{
+    font-family:'IBM Plex Mono', monospace; font-size:0.72rem; background:var(--paper-dark);
+    border:1.5px solid var(--ink); padding:6px 10px; border-radius:3px; cursor:pointer;
+  }
+  .tool-row button.util:hover{ background:var(--ink); color:var(--paper); }
+  .tool-row button.util.active{ background:var(--ink); color:var(--paper); }
+
+  .modal-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+  .modal-actions button{
+    font-family:'IBM Plex Mono', monospace; font-size:0.82rem; padding:9px 18px;
+    border-radius:3px; cursor:pointer; border:1.5px solid var(--ink);
+  }
+  .modal-actions .cancel{ background:var(--paper); color:var(--ink); }
+  .modal-actions .save{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .modal-actions .save:hover{ background:#a3371f; }
+
+  .banner{
+    max-width:760px; margin: 0 auto; padding: 10px 18px 0;
+    font-size:0.72rem; color:var(--pencil); text-align:center; display:none;
+  }
+  body.editing .banner{ display:block; }
+
+  footer{ text-align:center; font-size:0.7rem; color:var(--pencil); padding: 20px 20px 40px; border-top: 1px solid var(--paper-dark); }
+
+  @media (max-width: 500px){ .header-controls{ position:static; margin-top:14px; justify-content:center; } }
+  @media (prefers-reduced-motion: reduce){ * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <filter id="wobble">
+    <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" result="noise" seed="7"/>
+    <feDisplacementMap in="SourceGraphic" in2="noise" scale="3"/>
+  </filter>
+</svg>
+
+<header>
+  <h1 id="siteTitle" title="click for a random one">Off By One</h1>
+  <div class="tagline">a webcomic about code, coffee, and cognitive load</div>
+  <div class="header-controls">
+    <button class="chip-btn" id="archiveToggle">Archive</button>
+    <button class="chip-btn" id="editToggle">Edit: Off</button>
+  </div>
+</header>
+
+<div class="banner">Edit mode is on. Two notes: this password lives in the page's source, so it keeps out casual visitors, not determined ones — and comics are saved to this browser only, so editing from a different device or browser starts fresh.</div>
+
+<main>
+  <div class="comic-num" id="comicNum"></div>
+  <h2 class="comic-title" id="comicTitle"></h2>
+
+  <div class="comic-frame" id="comicFrame">
+    <svg id="comicSvg" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" style="display:none"></svg>
+    <img id="comicImg" style="display:none" alt="">
+  </div>
+
+  <div class="edit-strip" id="editStrip">
+    <button id="editCurrentBtn">✎ Edit this comic</button>
+    <button class="danger" id="deleteCurrentBtn">🗑 Delete</button>
+  </div>
+
+  <div class="alt-hint">hover the panel for the real joke &middot; tap on mobile</div>
+  <div class="alt-reveal" id="altReveal"></div>
+
+  <nav class="comic-nav">
+    <button id="btnFirst">|&lt; First</button>
+    <button id="btnPrev">&lt; Prev</button>
+    <button class="random" id="btnRandom">Random</button>
+    <button id="btnNext">Next &gt;</button>
+    <button id="btnLast">Last &gt;|</button>
+  </nav>
+
+  <div class="permalink" id="permalink"></div>
+</main>
+
+<div class="archive-panel" id="archivePanel">
+  <h2>Archive</h2>
+  <ul class="archive-list" id="archiveList"></ul>
+</div>
+
+<button class="fab" id="newComicFab" title="New comic">+</button>
+
+<footer>Off By One is drawn in stick figures and rendered in SVG / canvas, which is either fitting or ironic depending on your uptime.</footer>
+
+<!-- Editor Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalHeading">New Comic</h3>
+    <div class="field">
+      <label for="inputTitle">Title</label>
+      <input type="text" id="inputTitle" placeholder="e.g. Merge Conflict">
+    </div>
+    <div class="field">
+      <label for="inputAlt">Alt text (the hover joke)</label>
+      <textarea id="inputAlt" placeholder="e.g. It's not a conflict, it's a difference of opinion between two versions of the truth."></textarea>
+    </div>
+    <div class="field">
+      <label>Draw the panel</label>
+      <div class="canvas-wrap">
+        <canvas id="drawCanvas" width="600" height="400"></canvas>
+      </div>
+      <div class="tool-row">
+        <button type="button" class="swatch active" data-color="#232120" style="background:#232120" title="ink"></button>
+        <button type="button" class="swatch" data-color="#c1442d" style="background:#c1442d" title="accent red"></button>
+        <button type="button" class="swatch" data-color="#8a8578" style="background:#8a8578" title="pencil gray"></button>
+        <button type="button" class="util" id="thinBtn">thin</button>
+        <button type="button" class="util active" id="thickBtn">thick</button>
+        <button type="button" class="util" id="eraserBtn">eraser</button>
+        <button type="button" class="util" id="undoBtn">undo</button>
+        <button type="button" class="util" id="clearBtn">clear</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="cancel" id="modalCancel">Cancel</button>
+      <button class="save" id="modalSave">Save comic</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- seed comics (original artwork, vector) ---------- */
+const seedComics = [
+  { id:'seed1', type:'svg', title:"Rubber Duck",
+    alt:"It's not gaslighting if the duck is right.",
+    svg:`<rect x="0" y="0" width="600" height="400" fill="#fffdf8"/>
+      <line x1="40" y1="330" x2="560" y2="330" stroke="#232120" stroke-width="3" stroke-linecap="round"/>
+      <rect x="150" y="290" width="300" height="10" fill="#232120"/>
+      <line x1="170" y1="300" x2="170" y2="330" stroke="#232120" stroke-width="4"/>
+      <line x1="430" y1="300" x2="430" y2="330" stroke="#232120" stroke-width="4"/>
+      <circle cx="230" cy="150" r="22" fill="none" stroke="#232120" stroke-width="3"/>
+      <line x1="230" y1="172" x2="230" y2="250" stroke="#232120" stroke-width="3"/>
+      <line x1="230" y1="190" x2="190" y2="220" stroke="#232120" stroke-width="3"/>
+      <line x1="230" y1="190" x2="270" y2="215" stroke="#232120" stroke-width="3"/>
+      <line x1="230" y1="250" x2="205" y2="290" stroke="#232120" stroke-width="3"/>
+      <line x1="230" y1="250" x2="255" y2="290" stroke="#232120" stroke-width="3"/>
+      <ellipse cx="360" cy="278" rx="34" ry="20" fill="none" stroke="#232120" stroke-width="3"/>
+      <circle cx="388" cy="262" r="14" fill="none" stroke="#232120" stroke-width="3"/>
+      <polygon points="400,262 415,258 400,268" fill="#232120"/>
+      <circle cx="392" cy="258" r="1.6" fill="#232120"/>
+      <path d="M100,60 h150 v55 h-90 l-20,20 v-20 h-40 z" fill="#fffdf8" stroke="#232120" stroke-width="2.5"/>
+      <text x="115" y="82" font-family="IBM Plex Mono" font-size="12" fill="#232120">...and that's why it</text>
+      <text x="115" y="98" font-family="IBM Plex Mono" font-size="12" fill="#232120">crashes on line 47.</text>
+      <path d="M400,150 h150 v50 h-30 l-15,18 v-18 h-105 z" fill="#fffdf8" stroke="#232120" stroke-width="2.5"/>
+      <text x="412" y="172" font-family="IBM Plex Mono" font-size="11" fill="#232120">have you tried removing</text>
+      <text x="412" y="187" font-family="IBM Plex Mono" font-size="11" fill="#232120">the semicolon from 2am?</text>` },
+  { id:'seed2', type:'svg', title:"Local Maximum",
+    alt:"I contain undiscovered global maxima.",
+    svg:`<rect x="0" y="0" width="600" height="400" fill="#fffdf8"/>
+      <polygon points="230,380 420,90 610,380" fill="none" stroke="#c9c2ac" stroke-width="3"/>
+      <path d="M330,220 q20,-15 40,0" fill="none" stroke="#c9c2ac" stroke-width="2"/>
+      <polygon points="-10,380 160,230 340,380" fill="#efeadd" stroke="#232120" stroke-width="3"/>
+      <line x1="160" y1="230" x2="160" y2="185" stroke="#232120" stroke-width="3"/>
+      <path d="M160,185 l38,12 -38,12 z" fill="#c1442d"/>
+      <text x="205" y="197" font-family="IBM Plex Mono" font-size="10" fill="#232120">YOU ARE HERE</text>
+      <text x="205" y="210" font-family="IBM Plex Mono" font-size="9" fill="#8a8578">(probably fine)</text>
+      <circle cx="150" cy="205" r="15" fill="none" stroke="#232120" stroke-width="3"/>
+      <line x1="150" y1="220" x2="150" y2="255" stroke="#232120" stroke-width="3"/>
+      <line x1="150" y1="230" x2="130" y2="245" stroke="#232120" stroke-width="3"/>
+      <line x1="150" y1="230" x2="172" y2="215" stroke="#232120" stroke-width="3"/>
+      <line x1="150" y1="255" x2="132" y2="280" stroke="#232120" stroke-width="3"/>
+      <line x1="150" y1="255" x2="168" y2="280" stroke="#232120" stroke-width="3"/>
+      <line x1="0" y1="380" x2="600" y2="380" stroke="#232120" stroke-width="3"/>` },
+  { id:'seed3', type:'svg', title:"Naming Things",
+    alt:"There are only two hard problems in computer science: cache invalidation, naming things, and off-by-one errors.",
+    svg:`<rect x="0" y="0" width="600" height="400" fill="#fffdf8"/>
+      <rect x="120" y="60" width="360" height="230" fill="none" stroke="#232120" stroke-width="3"/>
+      <line x1="120" y1="90" x2="480" y2="90" stroke="#232120" stroke-width="2"/>
+      <circle cx="138" cy="75" r="4" fill="#232120"/><circle cx="152" cy="75" r="4" fill="#232120"/><circle cx="166" cy="75" r="4" fill="#232120"/>
+      <text x="140" y="115" font-family="IBM Plex Mono" font-size="11" fill="#232120">final.psd</text>
+      <text x="140" y="140" font-family="IBM Plex Mono" font-size="11" fill="#232120">final_v2.psd</text>
+      <text x="140" y="165" font-family="IBM Plex Mono" font-size="11" fill="#232120">final_v2_FINAL.psd</text>
+      <text x="140" y="190" font-family="IBM Plex Mono" font-size="11" fill="#c1442d">final_v2_FINAL_reallyfinal.psd</text>
+      <text x="140" y="215" font-family="IBM Plex Mono" font-size="11" fill="#232120">final_v2_FINAL_reallyfinal_USE_THIS_ONE.psd</text>
+      <text x="140" y="240" font-family="IBM Plex Mono" font-size="11" fill="#8a8578">final_v2_FINAL_reallyfinal_USE_THIS_ONE_ok_actually_this_one.psd</text>
+      <circle cx="300" cy="345" r="16" fill="none" stroke="#232120" stroke-width="3"/>
+      <line x1="300" y1="361" x2="300" y2="380" stroke="#232120" stroke-width="3"/>
+      <line x1="285" y1="330" x2="280" y2="315" stroke="#232120" stroke-width="2"/>
+      <line x1="315" y1="330" x2="320" y2="315" stroke="#232120" stroke-width="2"/>` },
+  { id:'seed4', type:'svg', title:"Syntax Error",
+    alt:"Emotionally, it checked out. Grammatically, it did not.",
+    svg:`<rect x="0" y="0" width="600" height="400" fill="#fffdf8"/>
+      <circle cx="170" cy="180" r="22" fill="none" stroke="#232120" stroke-width="3"/>
+      <line x1="170" y1="202" x2="170" y2="280" stroke="#232120" stroke-width="3"/>
+      <line x1="170" y1="220" x2="130" y2="250" stroke="#232120" stroke-width="3"/>
+      <line x1="170" y1="220" x2="210" y2="250" stroke="#232120" stroke-width="3"/>
+      <line x1="170" y1="280" x2="145" y2="330" stroke="#232120" stroke-width="3"/>
+      <line x1="170" y1="280" x2="195" y2="330" stroke="#232120" stroke-width="3"/>
+      <path d="M110,60 h180 v55 h-100 l-18,18 v-18 h-62 z" fill="#fffdf8" stroke="#232120" stroke-width="2.5"/>
+      <text x="122" y="83" font-family="IBM Plex Mono" font-size="13" fill="#232120">I think we should—</text>
+      <circle cx="430" cy="180" r="22" fill="none" stroke="#232120" stroke-width="3"/>
+      <line x1="430" y1="202" x2="430" y2="280" stroke="#232120" stroke-width="3"/>
+      <line x1="430" y1="220" x2="390" y2="250" stroke="#232120" stroke-width="3"/>
+      <line x1="430" y1="220" x2="470" y2="250" stroke="#232120" stroke-width="3"/>
+      <line x1="430" y1="280" x2="405" y2="330" stroke="#232120" stroke-width="3"/>
+      <line x1="430" y1="280" x2="455" y2="330" stroke="#232120" stroke-width="3"/>
+      <path d="M370,60 h100 v50 h-40 l-14,16 v-16 h-46 z" fill="#fffdf8" stroke="#232120" stroke-width="2.5"/>
+      <text x="410" y="90" font-family="IBM Plex Mono" font-weight="600" font-size="18" fill="#c1442d">;</text>
+      <line x1="161" y1="173" x2="169" y2="181" stroke="#c1442d" stroke-width="2.5"/>
+      <line x1="169" y1="173" x2="161" y2="181" stroke="#c1442d" stroke-width="2.5"/>
+      <text x="120" y="365" font-family="IBM Plex Mono" font-size="11" fill="#c1442d">SyntaxError: unexpected token ';'</text>` },
+  { id:'seed5', type:'svg', title:"Just One More Bug",
+    alt:"The sun is basically a nightlight at this point.",
+    svg:`<rect x="0" y="0" width="600" height="400" fill="#fffdf8"/>
+      <rect x="380" y="50" width="160" height="140" fill="none" stroke="#232120" stroke-width="3"/>
+      <line x1="460" y1="50" x2="460" y2="190" stroke="#232120" stroke-width="2"/>
+      <line x1="380" y1="120" x2="540" y2="120" stroke="#232120" stroke-width="2"/>
+      <circle cx="500" cy="155" r="18" fill="#f0c96b" stroke="#232120" stroke-width="2"/>
+      <rect x="60" y="290" width="300" height="10" fill="#232120"/>
+      <line x1="80" y1="300" x2="80" y2="340" stroke="#232120" stroke-width="4"/>
+      <line x1="340" y1="300" x2="340" y2="340" stroke="#232120" stroke-width="4"/>
+      <rect x="110" y="200" width="140" height="90" fill="none" stroke="#232120" stroke-width="3"/>
+      <line x1="150" y1="215" x2="230" y2="215" stroke="#c1442d" stroke-width="2"/>
+      <line x1="150" y1="230" x2="210" y2="230" stroke="#232120" stroke-width="2"/>
+      <line x1="150" y1="245" x2="220" y2="245" stroke="#232120" stroke-width="2"/>
+      <line x1="150" y1="260" x2="195" y2="260" stroke="#c1442d" stroke-width="2"/>
+      <circle cx="195" cy="175" r="18" fill="none" stroke="#232120" stroke-width="3"/>
+      <line x1="195" y1="193" x2="200" y2="230" stroke="#232120" stroke-width="3"/>
+      <line x1="200" y1="230" x2="175" y2="260" stroke="#232120" stroke-width="3"/>
+      <line x1="200" y1="230" x2="230" y2="255" stroke="#232120" stroke-width="3"/>
+      <rect x="270" y="270" width="14" height="18" fill="none" stroke="#232120" stroke-width="2"/>
+      <rect x="290" y="272" width="14" height="16" fill="none" stroke="#232120" stroke-width="2"/>
+      <rect x="252" y="274" width="14" height="14" fill="none" stroke="#232120" stroke-width="2"/>
+      <text x="380" y="215" font-family="IBM Plex Mono" font-size="11" fill="#8a8578">04:52 AM</text>` },
+  { id:'seed6', type:'svg', title:"Fuel Efficiency",
+    alt:"Correlation, causation, caffeination — pick two.",
+    svg:`<rect x="0" y="0" width="600" height="400" fill="#fffdf8"/>
+      <line x1="90" y1="330" x2="90" y2="70" stroke="#232120" stroke-width="3"/>
+      <line x1="90" y1="330" x2="520" y2="330" stroke="#232120" stroke-width="3"/>
+      <text x="30" y="200" font-family="IBM Plex Mono" font-size="10" fill="#232120" transform="rotate(-90 30 200)">lines shipped</text>
+      <text x="260" y="360" font-family="IBM Plex Mono" font-size="10" fill="#232120">cups of coffee</text>
+      <path d="M100,310 C 180,260 220,120 300,100 S 420,180 500,300" fill="none" stroke="#c1442d" stroke-width="3"/>
+      <circle cx="300" cy="100" r="5" fill="#c1442d"/>
+      <text x="305" y="90" font-family="IBM Plex Mono" font-size="10" fill="#232120">the sweet spot</text>
+      <text x="420" y="250" font-family="IBM Plex Mono" font-size="10" fill="#8a8578">the jittery regret zone</text>` }
+];
+
+/* ---------- state ---------- */
+let comics = [];
+let current = 0;
+let editing = false;
+let editingComicId = null; // null = new comic
+
+const els = {
+  num: document.getElementById('comicNum'),
+  title: document.getElementById('comicTitle'),
+  svg: document.getElementById('comicSvg'),
+  img: document.getElementById('comicImg'),
+  alt: document.getElementById('altReveal'),
+  permalink: document.getElementById('permalink'),
+  archiveList: document.getElementById('archiveList'),
+  archivePanel: document.getElementById('archivePanel'),
+  editStrip: document.getElementById('editStrip'),
+};
+
+/* ---------- storage (browser localStorage — saves per device/browser) ---------- */
+const STORAGE_KEY = 'off-by-one-comics-data';
+
+async function loadComics(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      if(Array.isArray(parsed) && parsed.length > 0){
+        comics = parsed;
+        return;
+      }
+    }
+  }catch(e){ /* corrupt or missing — fall through to seeds */ }
+  comics = seedComics.slice();
+  await saveComics();
+}
+
+async function saveComics(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(comics));
+  }catch(e){
+    console.error('save failed', e);
+    alert('Could not save — your browser storage may be full or blocked (e.g. private browsing). Try clearing old comics or using a different browser.');
+  }
+}
+
+/* ---------- render ---------- */
+function render(){
+  if(comics.length === 0){
+    els.title.textContent = 'No comics yet';
+    els.num.textContent = '';
+    els.svg.style.display='none'; els.img.style.display='none';
+    els.permalink.textContent='';
+    return;
+  }
+  current = Math.max(0, Math.min(comics.length - 1, current));
+  const c = comics[current];
+  els.num.textContent = `#${current + 1} of ${comics.length}`;
+  els.title.textContent = c.title;
+
+  if(c.type === 'svg'){
+    els.svg.innerHTML = c.svg;
+    els.svg.setAttribute('title', c.alt);
+    els.svg.style.display='block';
+    els.img.style.display='none';
+  } else {
+    els.img.src = c.image;
+    els.img.setAttribute('title', c.alt);
+    els.img.style.display='block';
+    els.svg.style.display='none';
+  }
+
+  els.alt.textContent = c.alt;
+  els.alt.classList.remove('show');
+  els.permalink.textContent = `permalink: /comic/${current + 1}`;
+
+  document.getElementById('btnFirst').disabled = current === 0;
+  document.getElementById('btnPrev').disabled = current === 0;
+  document.getElementById('btnNext').disabled = current === comics.length - 1;
+  document.getElementById('btnLast').disabled = current === comics.length - 1;
+
+  document.title = `${c.title} — Off By One`;
+  buildArchive();
+}
+
+function goTo(i){
+  if(comics.length === 0) return;
+  current = Math.max(0, Math.min(comics.length - 1, i));
+  render();
+}
+
+document.getElementById('btnFirst').addEventListener('click', () => goTo(0));
+document.getElementById('btnPrev').addEventListener('click', () => goTo(current - 1));
+document.getElementById('btnNext').addEventListener('click', () => goTo(current + 1));
+document.getElementById('btnLast').addEventListener('click', () => goTo(comics.length - 1));
+document.getElementById('btnRandom').addEventListener('click', () => {
+  if(comics.length <= 1){ return; }
+  let i;
+  do { i = Math.floor(Math.random() * comics.length); } while (i === current);
+  goTo(i);
+});
+document.getElementById('siteTitle').addEventListener('click', () => document.getElementById('btnRandom').click());
+document.getElementById('comicFrame').addEventListener('click', () => els.alt.classList.toggle('show'));
+
+/* ---------- archive ---------- */
+function buildArchive(){
+  els.archiveList.innerHTML = '';
+  comics.forEach((c, i) => {
+    const li = document.createElement('li');
+    const main = document.createElement('div');
+    main.className = 'a-main';
+    main.innerHTML = `<span class="a-num">#${i + 1}</span><span class="a-title">${escapeHtml(c.title)}</span>`;
+    main.addEventListener('click', () => {
+      goTo(i);
+      els.archivePanel.classList.remove('show');
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    });
+    li.appendChild(main);
+    const del = document.createElement('button');
+    del.className = 'a-del';
+    del.textContent = 'delete';
+    del.addEventListener('click', (e) => { e.stopPropagation(); deleteComic(c.id); });
+    li.appendChild(del);
+    els.archiveList.appendChild(li);
+  });
+}
+
+function escapeHtml(s){
+  return (s || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+document.getElementById('archiveToggle').addEventListener('click', () => {
+  els.archivePanel.classList.toggle('show');
+});
+
+/* ---------- edit mode (password gated) ---------- */
+const EDIT_PASSWORD = 'haeyirang';
+const editToggle = document.getElementById('editToggle');
+editToggle.addEventListener('click', () => {
+  if(!editing){
+    const attempt = prompt('Editing password:');
+    if(attempt === null) return; // cancelled
+    if(attempt !== EDIT_PASSWORD){
+      alert('Wrong password.');
+      return;
+    }
+  }
+  editing = !editing;
+  document.body.classList.toggle('editing', editing);
+  editToggle.textContent = editing ? 'Edit: On' : 'Edit: Off';
+  editToggle.classList.toggle('edit-on', editing);
+  els.editStrip.classList.toggle('show', editing && comics.length > 0);
+});
+
+document.getElementById('editCurrentBtn').addEventListener('click', () => openEditor(comics[current]));
+document.getElementById('deleteCurrentBtn').addEventListener('click', () => {
+  if(comics[current]) deleteComic(comics[current].id);
+});
+
+async function deleteComic(id){
+  if(!confirm('Delete this comic? This can\\'t be undone.')) return;
+  const idx = comics.findIndex(c => c.id === id);
+  comics = comics.filter(c => c.id !== id);
+  await saveComics();
+  if(idx <= current) current = Math.max(0, current - 1);
+  render();
+  els.editStrip.classList.toggle('show', editing && comics.length > 0);
+}
+
+document.getElementById('newComicFab').addEventListener('click', () => openEditor(null));
+
+/* ---------- modal / drawing ---------- */
+const overlay = document.getElementById('modalOverlay');
+const canvas = document.getElementById('drawCanvas');
+const ctx = canvas.getContext('2d');
+let drawing = false;
+let currentColor = '#232120';
+let currentWidth = 6;
+let eraserOn = false;
+let undoStack = [];
+
+function clearCanvasWhite(){
+  ctx.fillStyle = '#fffdf8';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function pushUndo(){
+  undoStack.push(canvas.toDataURL('image/png'));
+  if(undoStack.length > 25) undoStack.shift();
+}
+
+function getPos(e){
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const point = e.touches ? e.touches[0] : e;
+  return { x: (point.clientX - rect.left) * scaleX, y: (point.clientY - rect.top) * scaleY };
+}
+
+function startDraw(e){
+  e.preventDefault();
+  pushUndo();
+  drawing = true;
+  const p = getPos(e);
+  ctx.beginPath();
+  ctx.moveTo(p.x, p.y);
+}
+function moveDraw(e){
+  if(!drawing) return;
+  e.preventDefault();
+  const p = getPos(e);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = eraserOn ? currentWidth * 3 : currentWidth;
+  ctx.strokeStyle = eraserOn ? '#fffdf8' : currentColor;
+  ctx.lineTo(p.x, p.y);
+  ctx.stroke();
+}
+function endDraw(){ drawing = false; }
+
+canvas.addEventListener('mousedown', startDraw);
+canvas.addEventListener('mousemove', moveDraw);
+window.addEventListener('mouseup', endDraw);
+canvas.addEventListener('touchstart', startDraw, { passive:false });
+canvas.addEventListener('touchmove', moveDraw, { passive:false });
+canvas.addEventListener('touchend', endDraw);
+
+document.querySelectorAll('.swatch').forEach(sw => {
+  sw.addEventListener('click', () => {
+    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+    currentColor = sw.dataset.color;
+    eraserOn = false;
+    document.getElementById('eraserBtn').classList.remove('active');
+  });
+});
+document.getElementById('thinBtn').addEventListener('click', () => {
+  currentWidth = 2.5;
+  document.getElementById('thinBtn').classList.add('active');
+  document.getElementById('thickBtn').classList.remove('active');
+});
+document.getElementById('thickBtn').addEventListener('click', () => {
+  currentWidth = 6;
+  document.getElementById('thickBtn').classList.add('active');
+  document.getElementById('thinBtn').classList.remove('active');
+});
+document.getElementById('eraserBtn').addEventListener('click', () => {
+  eraserOn = true;
+  document.getElementById('eraserBtn').classList.add('active');
+});
+document.getElementById('undoBtn').addEventListener('click', () => {
+  if(undoStack.length === 0) return;
+  const last = undoStack.pop();
+  const im = new Image();
+  im.onload = () => { clearCanvasWhite(); ctx.drawImage(im, 0, 0); };
+  im.src = last;
+});
+document.getElementById('clearBtn').addEventListener('click', () => {
+  pushUndo();
+  clearCanvasWhite();
+});
+
+function openEditor(comic){
+  editingComicId = comic ? comic.id : null;
+  document.getElementById('modalHeading').textContent = comic ? 'Edit Comic' : 'New Comic';
+  document.getElementById('inputTitle').value = comic ? comic.title : '';
+  document.getElementById('inputAlt').value = comic ? comic.alt : '';
+  undoStack = [];
+  clearCanvasWhite();
+  if(comic && comic.type === 'drawing'){
+    const im = new Image();
+    im.onload = () => { ctx.drawImage(im, 0, 0); };
+    im.src = comic.image;
+  }
+  overlay.classList.add('show');
+}
+
+document.getElementById('modalCancel').addEventListener('click', () => overlay.classList.remove('show'));
+overlay.addEventListener('click', (e) => { if(e.target === overlay) overlay.classList.remove('show'); });
+
+document.getElementById('modalSave').addEventListener('click', async () => {
+  const title = document.getElementById('inputTitle').value.trim() || 'Untitled';
+  const alt = document.getElementById('inputAlt').value.trim() || '(no alt text yet)';
+  const image = canvas.toDataURL('image/png');
+
+  if(editingComicId){
+    const idx = comics.findIndex(c => c.id === editingComicId);
+    if(idx !== -1){
+      comics[idx] = { id: editingComicId, type: 'drawing', title, alt, image };
+      current = idx;
+    }
+  } else {
+    const newComic = { id: 'c' + Date.now() + Math.floor(Math.random()*1000), type: 'drawing', title, alt, image };
+    comics.push(newComic);
+    current = comics.length - 1;
+  }
+  await saveComics();
+  overlay.classList.remove('show');
+  render();
+  els.editStrip.classList.toggle('show', editing && comics.length > 0);
+});
+
+/* ---------- init ---------- */
+(async function init(){
+  clearCanvasWhite();
+  await loadComics();
+  render();
+})();
+</script>
+
+</body>
+</html>
