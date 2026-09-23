@@ -133,12 +133,22 @@
     border-bottom:1px solid var(--paper-dark); font-size:0.88rem;
   }
   .archive-list li:hover{ background: var(--paper-dark); }
-  .archive-list .a-main{ flex:1; display:flex; gap:14px; align-items:baseline; cursor:pointer; }
+  .archive-list .a-main{ flex:1; display:flex; gap:14px; align-items:baseline; cursor:pointer; min-width:0; }
   .archive-list .a-num{ color:var(--pencil); font-size:0.75rem; min-width:34px; }
-  .archive-list .a-title{ font-weight:600; }
+  .archive-list .a-title{ font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .archive-list .a-date{
+    font-size:0.72rem; color:var(--pencil); white-space:nowrap; flex-shrink:0;
+  }
+  .archive-list .a-date-input{
+    display:none; font-family:'IBM Plex Mono', monospace; font-size:0.72rem;
+    border:1.5px solid var(--ink); border-radius:3px; padding:3px 5px;
+    background:#fffdf8; color:var(--ink); flex-shrink:0;
+  }
+  body.editing .archive-list .a-date{ display:none; }
+  body.editing .archive-list .a-date-input{ display:inline-block; }
   .archive-list .a-del{
     font-size:0.7rem; background:none; border:1px solid var(--pencil); color:var(--pencil);
-    border-radius:3px; padding:3px 7px; cursor:pointer; display:none;
+    border-radius:3px; padding:3px 7px; cursor:pointer; display:none; flex-shrink:0;
   }
   .archive-list .a-del:hover{ background:var(--accent); border-color:var(--accent); color:#fff; }
   body.editing .archive-list .a-del{ display:inline-block; }
@@ -282,7 +292,7 @@
         <button type="button" class="util" id="uploadClearBtn">clear canvas</button>
       </div>
       <div class="canvas-wrap">
-        <canvas id="drawCanvas" width="600" height="400"></canvas>
+        <canvas id="drawCanvas" width="1500" height="1000"></canvas>
       </div>
       <div class="tool-row">
         <button type="button" class="swatch active" data-color="#232120" style="background:#232120" title="ink"></button>
@@ -305,7 +315,7 @@
 <script>
 /* ---------- seed comics (original artwork, vector) ---------- */
 const seedComics = [
-  { id:'seed1', type:'svg', title:"Rubber Duck",
+  { id:'seed1', type:'svg', title:"Rubber Duck", date:"2026-01-12",
     alt:"It's not gaslighting if the duck is right.",
     svg:`<rect x="0" y="0" width="600" height="400" fill="#fffdf8"/>
       <line x1="40" y1="330" x2="560" y2="330" stroke="#232120" stroke-width="3" stroke-linecap="round"/>
@@ -328,7 +338,7 @@ const seedComics = [
       <path d="M400,150 h150 v50 h-30 l-15,18 v-18 h-105 z" fill="#fffdf8" stroke="#232120" stroke-width="2.5"/>
       <text x="412" y="172" font-family="IBM Plex Mono" font-size="11" fill="#232120">have you tried removing</text>
       <text x="412" y="187" font-family="IBM Plex Mono" font-size="11" fill="#232120">the semicolon from 2am?</text>` },
-  { id:'seed2', type:'svg', title:"Local Maximum",
+  { id:'seed2', type:'svg', title:"Local Maximum", date:"2026-02-09",
     alt:"I contain undiscovered global maxima.",
     svg:`<rect x="0" y="0" width="600" height="400" fill="#fffdf8"/>
       <polygon points="230,380 420,90 610,380" fill="none" stroke="#c9c2ac" stroke-width="3"/>
@@ -345,7 +355,7 @@ const seedComics = [
       <line x1="150" y1="255" x2="132" y2="280" stroke="#232120" stroke-width="3"/>
       <line x1="150" y1="255" x2="168" y2="280" stroke="#232120" stroke-width="3"/>
       <line x1="0" y1="380" x2="600" y2="380" stroke="#232120" stroke-width="3"/>` },
-  { id:'seed3', type:'svg', title:"Naming Things",
+  { id:'seed3', type:'svg', title:"Naming Things", date:"2026-03-16",
     alt:"There are only two hard problems in computer science: cache invalidation, naming things, and off-by-one errors.",
     svg:`<rect x="0" y="0" width="600" height="400" fill="#fffdf8"/>
       <rect x="120" y="60" width="360" height="230" fill="none" stroke="#232120" stroke-width="3"/>
@@ -361,7 +371,7 @@ const seedComics = [
       <line x1="300" y1="361" x2="300" y2="380" stroke="#232120" stroke-width="3"/>
       <line x1="285" y1="330" x2="280" y2="315" stroke="#232120" stroke-width="2"/>
       <line x1="315" y1="330" x2="320" y2="315" stroke="#232120" stroke-width="2"/>` },
-  { id:'seed4', type:'svg', title:"Syntax Error",
+  { id:'seed4', type:'svg', title:"Syntax Error", date:"2026-04-27",
     alt:"Emotionally, it checked out. Grammatically, it did not.",
     svg:`<rect x="0" y="0" width="600" height="400" fill="#fffdf8"/>
       <circle cx="170" cy="180" r="22" fill="none" stroke="#232120" stroke-width="3"/>
@@ -383,7 +393,7 @@ const seedComics = [
       <line x1="161" y1="173" x2="169" y2="181" stroke="#c1442d" stroke-width="2.5"/>
       <line x1="169" y1="173" x2="161" y2="181" stroke="#c1442d" stroke-width="2.5"/>
       <text x="120" y="365" font-family="IBM Plex Mono" font-size="11" fill="#c1442d">SyntaxError: unexpected token ';'</text>` },
-  { id:'seed5', type:'svg', title:"Just One More Bug",
+  { id:'seed5', type:'svg', title:"Just One More Bug", date:"2026-06-08",
     alt:"The sun is basically a nightlight at this point.",
     svg:`<rect x="0" y="0" width="600" height="400" fill="#fffdf8"/>
       <rect x="380" y="50" width="160" height="140" fill="none" stroke="#232120" stroke-width="3"/>
@@ -406,7 +416,7 @@ const seedComics = [
       <rect x="290" y="272" width="14" height="16" fill="none" stroke="#232120" stroke-width="2"/>
       <rect x="252" y="274" width="14" height="14" fill="none" stroke="#232120" stroke-width="2"/>
       <text x="380" y="215" font-family="IBM Plex Mono" font-size="11" fill="#8a8578">04:52 AM</text>` },
-  { id:'seed6', type:'svg', title:"Fuel Efficiency",
+  { id:'seed6', type:'svg', title:"Fuel Efficiency", date:"2026-07-21",
     alt:"Correlation, causation, caffeination — pick two.",
     svg:`<rect x="0" y="0" width="600" height="400" fill="#fffdf8"/>
       <line x1="90" y1="330" x2="90" y2="70" stroke="#232120" stroke-width="3"/>
@@ -440,6 +450,31 @@ const els = {
 /* ---------- storage (browser localStorage — saves per device/browser) ---------- */
 const STORAGE_KEY = 'off-by-one-comics-data';
 
+function todayStr(){
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function ensureDates(){
+  // backfill a date for any comic saved before dates existed
+  comics.forEach(c => {
+    if(c.date) return;
+    const m = /^c(\d{13})/.exec(c.id || '');
+    if(m){
+      c.date = new Date(parseInt(m[1], 10)).toISOString().slice(0, 10);
+    } else {
+      c.date = todayStr();
+    }
+  });
+}
+
+function formatDate(dateStr){
+  if(!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if(!y || !m || !d) return dateStr;
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+}
+
 async function loadComics(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -447,11 +482,13 @@ async function loadComics(){
       const parsed = JSON.parse(raw);
       if(Array.isArray(parsed) && parsed.length > 0){
         comics = parsed;
+        ensureDates();
         return;
       }
     }
   }catch(e){ /* corrupt or missing — fall through to seeds */ }
   comics = seedComics.slice();
+  ensureDates();
   await saveComics();
 }
 
@@ -492,7 +529,7 @@ function render(){
 
   els.alt.textContent = c.alt;
   els.alt.classList.remove('show');
-  els.permalink.textContent = `permalink: /comic/${current + 1}`;
+  els.permalink.textContent = `permalink: /comic/${current + 1} · posted ${formatDate(c.date)}`;
 
   document.getElementById('btnFirst').disabled = current === 0;
   document.getElementById('btnPrev').disabled = current === 0;
@@ -527,6 +564,7 @@ function buildArchive(){
   els.archiveList.innerHTML = '';
   comics.forEach((c, i) => {
     const li = document.createElement('li');
+
     const main = document.createElement('div');
     main.className = 'a-main';
     main.innerHTML = `<span class="a-num">#${i + 1}</span><span class="a-title">${escapeHtml(c.title)}</span>`;
@@ -536,11 +574,31 @@ function buildArchive(){
       window.scrollTo({top: 0, behavior: 'smooth'});
     });
     li.appendChild(main);
+
+    const dateText = document.createElement('span');
+    dateText.className = 'a-date';
+    dateText.textContent = formatDate(c.date);
+    li.appendChild(dateText);
+
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.className = 'a-date-input';
+    dateInput.value = c.date || todayStr();
+    dateInput.addEventListener('click', (e) => e.stopPropagation());
+    dateInput.addEventListener('change', async (e) => {
+      c.date = e.target.value || todayStr();
+      await saveComics();
+      dateText.textContent = formatDate(c.date);
+      if(i === current) els.permalink.textContent = `permalink: /comic/${current + 1} · posted ${formatDate(c.date)}`;
+    });
+    li.appendChild(dateInput);
+
     const del = document.createElement('button');
     del.className = 'a-del';
     del.textContent = 'delete';
     del.addEventListener('click', (e) => { e.stopPropagation(); deleteComic(c.id); });
     li.appendChild(del);
+
     els.archiveList.appendChild(li);
   });
 }
@@ -595,7 +653,7 @@ const canvas = document.getElementById('drawCanvas');
 const ctx = canvas.getContext('2d');
 let drawing = false;
 let currentColor = '#232120';
-let currentWidth = 6;
+let currentWidth = 15;
 let eraserOn = false;
 let undoStack = [];
 
@@ -655,12 +713,12 @@ document.querySelectorAll('.swatch').forEach(sw => {
   });
 });
 document.getElementById('thinBtn').addEventListener('click', () => {
-  currentWidth = 2.5;
+  currentWidth = 6;
   document.getElementById('thinBtn').classList.add('active');
   document.getElementById('thickBtn').classList.remove('active');
 });
 document.getElementById('thickBtn').addEventListener('click', () => {
-  currentWidth = 6;
+  currentWidth = 15;
   document.getElementById('thickBtn').classList.add('active');
   document.getElementById('thinBtn').classList.remove('active');
 });
@@ -748,11 +806,12 @@ document.getElementById('modalSave').addEventListener('click', async () => {
   if(editingComicId){
     const idx = comics.findIndex(c => c.id === editingComicId);
     if(idx !== -1){
-      comics[idx] = { id: editingComicId, type: 'drawing', title, alt, image };
+      const existingDate = comics[idx].date || todayStr();
+      comics[idx] = { id: editingComicId, type: 'drawing', title, alt, image, date: existingDate };
       current = idx;
     }
   } else {
-    const newComic = { id: 'c' + Date.now() + Math.floor(Math.random()*1000), type: 'drawing', title, alt, image };
+    const newComic = { id: 'c' + Date.now() + Math.floor(Math.random()*1000), type: 'drawing', title, alt, image, date: todayStr() };
     comics.push(newComic);
     current = comics.length - 1;
   }
