@@ -209,6 +209,21 @@
     font-size:0.72rem; color:var(--pencil); text-align:center; display:none;
   }
   body.editing .banner{ display:block; }
+  .publish-bar{ display:none; }
+  body.editing .publish-bar{
+    display:flex; flex-wrap:wrap; gap:8px 10px; align-items:center; justify-content:center;
+    padding:12px 18px; color:var(--ink);
+  }
+  .publish-status{ font-size:0.78rem; color:var(--pencil); }
+  .publish-status.dirty{ color:var(--accent); font-weight:600; }
+  .draft-note{
+    display:none; max-width:760px; margin:12px auto 0; padding:8px 14px;
+    font-size:0.74rem; text-align:center; background:var(--highlight);
+    border:1.5px dashed var(--ink); border-radius:4px;
+  }
+  .draft-note.show{ display:block; }
+  .steps{ margin:0 0 14px; padding-left:20px; font-size:0.85rem; line-height:1.6; }
+  .steps a{ color:var(--accent); }
 
   footer{ text-align:center; font-size:0.7rem; color:var(--pencil); padding: 20px 20px 40px; border-top: 1px solid var(--paper-dark); }
 
@@ -234,7 +249,13 @@
   </div>
 </header>
 
-<div class="banner">Edit mode is on. Two notes: this password lives in the page's source, so it keeps out casual visitors, not determined ones — and comics are saved to this browser only, so editing from a different device or browser starts fresh.</div>
+<div class="draft-note" id="draftNote">You're seeing your unpublished draft — visitors don't see these changes yet. Turn on Edit, then Publish.</div>
+
+<div class="banner publish-bar">
+  <span id="publishStatus" class="publish-status">Everything here is published.</span>
+  <button class="chip-btn" id="publishBtn">Publish…</button>
+  <button class="chip-btn" id="discardBtn">Discard draft</button>
+</div>
 
 <main>
   <div class="comic-num" id="comicNum"></div>
@@ -308,6 +329,24 @@
     <div class="modal-actions">
       <button class="cancel" id="modalCancel">Cancel</button>
       <button class="save" id="modalSave">Save comic</button>
+    </div>
+  </div>
+</div>
+
+<!-- Publish dialog -->
+<div class="modal-overlay" id="publishOverlay">
+  <div class="modal">
+    <h3>Publish your comics</h3>
+    <p style="font-size:0.85rem; line-height:1.5; margin-top:0;">
+      A file called <strong>comics.json</strong> just downloaded. Uploading it to GitHub is what makes your comics visible to everyone:
+    </p>
+    <ol class="steps">
+      <li>Open your repo's upload page: <a id="uploadLink" href="https://github.com" target="_blank" rel="noopener">GitHub repo → Add file → Upload files</a></li>
+      <li>Drag <strong>comics.json</strong> in (it replaces the old one) and click <strong>Commit changes</strong>.</li>
+      <li>Wait a minute or two, then refresh the site. Your draft clears itself once it matches what's published.</li>
+    </ol>
+    <div class="modal-actions">
+      <button class="cancel" id="publishClose">Done</button>
     </div>
   </div>
 </div>
@@ -447,8 +486,7 @@ const els = {
   editStrip: document.getElementById('editStrip'),
 };
 
-/* ---------- storage (browser localStorage — saves per device/browser) ---------- */
-const STORAGE_KEY = 'off-by-one-comics-data';
+/* ---------- storage ---------- */
 
 function todayStr(){
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -475,30 +513,92 @@ function formatDate(dateStr){
   return dt.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
 }
 
-async function loadComics(){
+/*
+  How saving works:
+  - PUBLISHED comics live in comics.json in the GitHub repo. Everyone who visits sees these.
+  - Edits you make are a private DRAFT in this browser (localStorage) until you
+    click Publish, which downloads a new comics.json to upload to GitHub.
+*/
+const DRAFT_KEY = 'applesandstuff-comics-draft-v2';
+const PUBLISHED_URL = 'comics.json';
+let publishedStr = '';   // JSON of what's currently published (or the built-in starter comics)
+
+async function fetchPublished(){
   try{
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const res = await fetch(PUBLISHED_URL + '?v=' + Date.now(), { cache: 'no-store' });
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(Array.isArray(data) && data.length > 0) return data;
+  }catch(e){ /* no comics.json yet, or opened as a local file */ }
+  return null;
+}
+
+function readDraft(){
+  try{
+    const raw = localStorage.getItem(DRAFT_KEY);
     if(raw){
-      const parsed = JSON.parse(raw);
-      if(Array.isArray(parsed) && parsed.length > 0){
-        comics = parsed;
-        ensureDates();
-        return;
+      const p = JSON.parse(raw);
+      if(Array.isArray(p) && p.length > 0) return p;
+    }
+    // One-time migration: the earlier version saved your comics under this key.
+    // Only adopt it if it holds comics you added (visitors' copies only hold the starter comics).
+    const old = localStorage.getItem('off-by-one-comics-data');
+    if(old){
+      const p = JSON.parse(old);
+      if(Array.isArray(p) && p.some(c => !String(c.id).startsWith('seed'))){
+        localStorage.setItem(DRAFT_KEY, old);
+        return p;
       }
     }
-  }catch(e){ /* corrupt or missing — fall through to seeds */ }
-  comics = seedComics.slice();
+  }catch(e){ /* corrupt or blocked storage */ }
+  return null;
+}
+
+async function loadComics(){
+  const published = await fetchPublished();
+  const base = published || seedComics.slice();
+  comics = base;
   ensureDates();
-  await saveComics();
+  publishedStr = JSON.stringify(comics);
+
+  const draft = readDraft();
+  if(draft){
+    comics = draft;
+    ensureDates();
+    if(JSON.stringify(comics) === publishedStr){
+      // draft already matches what's published (you uploaded it) — nothing left to track
+      try{ localStorage.removeItem(DRAFT_KEY); }catch(e){}
+      comics = JSON.parse(publishedStr);
+    }
+  }
+  updateDraftStatus();
+}
+
+function isDirty(){
+  return JSON.stringify(comics) !== publishedStr;
+}
+
+function updateDraftStatus(){
+  const dirty = isDirty();
+  document.getElementById('draftNote').classList.toggle('show', dirty);
+  const status = document.getElementById('publishStatus');
+  if(status){
+    status.textContent = dirty
+      ? 'You have unpublished changes — visitors can\'t see them yet.'
+      : 'Everything here is published.';
+    status.classList.toggle('dirty', dirty);
+  }
 }
 
 async function saveComics(){
   try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(comics));
+    if(isDirty()) localStorage.setItem(DRAFT_KEY, JSON.stringify(comics));
+    else localStorage.removeItem(DRAFT_KEY);
   }catch(e){
     console.error('save failed', e);
-    alert('Could not save — your browser storage may be full or blocked (e.g. private browsing). Try clearing old comics or using a different browser.');
+    alert('Could not save your draft — browser storage may be full or blocked (e.g. private browsing). Publish soon so you don\'t lose your changes.');
   }
+  updateDraftStatus();
 }
 
 /* ---------- render ---------- */
@@ -662,6 +762,13 @@ function clearCanvasWhite(){
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
+// Saved comics use WebP (or JPEG) instead of PNG so comics.json stays small.
+function exportImage(){
+  let url = canvas.toDataURL('image/webp', 0.92);
+  if(!url.startsWith('data:image/webp')) url = canvas.toDataURL('image/jpeg', 0.92);
+  return url;
+}
+
 function pushUndo(){
   undoStack.push(canvas.toDataURL('image/png'));
   if(undoStack.length > 25) undoStack.shift();
@@ -801,7 +908,7 @@ overlay.addEventListener('click', (e) => { if(e.target === overlay) overlay.clas
 document.getElementById('modalSave').addEventListener('click', async () => {
   const title = document.getElementById('inputTitle').value.trim() || 'Untitled';
   const alt = document.getElementById('inputAlt').value.trim() || '(no alt text yet)';
-  const image = canvas.toDataURL('image/png');
+  const image = exportImage();
 
   if(editingComicId){
     const idx = comics.findIndex(c => c.id === editingComicId);
@@ -819,6 +926,41 @@ document.getElementById('modalSave').addEventListener('click', async () => {
   overlay.classList.remove('show');
   render();
   els.editStrip.classList.toggle('show', editing && comics.length > 0);
+});
+
+/* ---------- publish ---------- */
+const publishOverlay = document.getElementById('publishOverlay');
+
+document.getElementById('publishBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(comics)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'comics.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  // build a direct link to the repo's upload page when running on github.io
+  const link = document.getElementById('uploadLink');
+  const host = location.hostname;
+  if(host.endsWith('.github.io')){
+    const user = host.split('.')[0];
+    const repo = location.pathname.split('/')[1];
+    link.href = repo ? `https://github.com/${user}/${repo}/upload/main` : `https://github.com/${user}/${host}/upload/main`;
+    link.textContent = link.href;
+  }
+  publishOverlay.classList.add('show');
+});
+document.getElementById('publishClose').addEventListener('click', () => publishOverlay.classList.remove('show'));
+publishOverlay.addEventListener('click', (e) => { if(e.target === publishOverlay) publishOverlay.classList.remove('show'); });
+
+document.getElementById('discardBtn').addEventListener('click', () => {
+  if(!isDirty()){ alert('No draft to discard — everything is already published.'); return; }
+  if(!confirm('Discard your unpublished changes and go back to the published comics? This cannot be undone.')) return;
+  try{ localStorage.removeItem(DRAFT_KEY); }catch(e){}
+  location.reload();
 });
 
 /* ---------- init ---------- */
